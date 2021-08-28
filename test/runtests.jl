@@ -103,4 +103,8 @@ end
     original = randstring(128 * 1024^2)
     original_bytes = Vector{UInt8}(original)
     @test uncompress(compress(original_bytes)) == original_bytes
+
+    Random.seed!(2014)
+    orig = randstring(128 * 1024^2)
+    @test String(uncompress(String(compress(orig)))) == orig
 end

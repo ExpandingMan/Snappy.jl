@@ -1,13 +1,6 @@
-__precompile__()
-
 module Snappy
 
-# Load libsnappy from our deps.jl
-const depsjl_path = joinpath(dirname(@__FILE__), "..", "deps", "deps.jl")
-if !isfile(depsjl_path)
-    error("Snappy not installed properly, run Pkg.build(\"Snappy\"), restart Julia and try again")
-end
-include(depsjl_path)
+using snappy_jll
 
 export compress, uncompress
 
@@ -16,39 +9,57 @@ const SnappyOK             = Cint(0)
 const SnappyInvalidInput   = Cint(1)
 const SnappyBufferTooSmall = Cint(2)
 
-function __init__()
-    check_deps()
-end
-
 # High-level Interfaces
 
+"""
+    compress(input::AbstractVector{UInt8})
+    compress(str::AbstractString)
+
+Compress the input data using the snappy compression algorithm.
+
+Note that providing types other than `Vector{UInt8}` will usually result
+in copying.
+"""
 function compress(input::Vector{UInt8})
     ilen = length(input)
     maxlen = snappy_max_compressed_length(UInt(ilen))
     compressed = Array{UInt8}(undef, maxlen)
     olen, st = snappy_compress(input, compressed)
     if st != SnappyOK
-        error("failed to compress the data")
+        error("snappy failed to compress; error code $st")
     end
     resize!(compressed, olen)
     compressed
 end
+compress(input::AbstractVector{UInt8}) = compress(convert(Vector{UInt8}, input))
+compress(str::AbstractString) = compress(codeunits(str))
 
+"""
+    uncompress(input::AbstractArray{UInt8})
+    uncompress(str::AbstractString)
+
+Uncompress the input data using the snappy decompression algorithm.
+
+Note that providing types other than `Array{UInt8}` will usually result
+in copying.
+"""
 function uncompress(input::Array{UInt8})
     ilen = length(input)
     explen, st = snappy_uncompressed_length(input)
     if st != SnappyOK
-        error("faield to guess the length of the uncompressed data (the compressed data may be broken?)")
+        error("snappy failed to guess the length of the uncompressed data; error code $st")
     end
     uncompressed = Array{UInt8}(undef, explen)
     olen, st = snappy_uncompress(input, uncompressed)
     if st != SnappyOK
-        error("failed to uncompress the data")
+        error("snappy failed to uncompress the data; error code $st")
     end
     @assert explen == olen
     resize!(uncompressed, olen)
     uncompressed
 end
+uncompress(input::AbstractArray{UInt8}) = uncompress(convert(Array{UInt8}, input))
+uncompress(str::AbstractString) = uncompress(codeunits(str))
 
 # Low-level Interfaces
 
